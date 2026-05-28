@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(awk -F/ '{print $1}')",
+      "Bash(grep -E \"\\(__pycache__|build/|\\\\.pyc$|recommenders\\\\.pdf$|\\\\.DS_Store\\)\")"
+    ]
+  }
+}

@@ -29,15 +29,23 @@ This folder builds the model from scratch, in phases:
 ## Repository structure
 
 ```text
-recommenders/
-├── RECOMMENDERS_README.md                       # this file
+recommender_epistemic_diversity/
+├── README.md                                    # this file
+├── CLAUDE.md                                    # per-project AI-agent context
+├── HOUSEKEEPING.md                              # recurring health-check routine
+├── TODO_WORKFLOW.md                             # cross-session task backlog
+├── worklog.jsonl                                # append-only session log (oldest first)
+├── housekeeping_log.jsonl                       # append-only housekeeping audit log
 ├── notes.md                                     # reading notes on the paper
 ├── requirements.txt                             # paper-specific Python deps
+├── .gitignore                                   # LaTeX aux, __pycache__, .ipynb_checkpoints, ...
 │
 ├── latex/                                       # paper source + compiled PDF
 │   ├── .latexmkrc                               # lualatex + biber toolchain locks
-│   ├── recommenders_v2.tex                      # paper source
+│   ├── recommenders_v2.tex                      # current paper source
 │   ├── recommenders_v2.pdf                      # current compile
+│   ├── recommenders_commented.tex               # original paper with `\ignacio{}` margin notes
+│   ├── recommenders_commented.pdf               # compile of the annotated source
 │   └── build/                                   # latex aux files (gitignored)
 │
 ├── model/                                       # the model codebase (Phase 1)
@@ -70,6 +78,22 @@ recommenders/
 - All artifacts (CSVs, PNGs, pickles) go under [results/](results/) with
   a timestamp so reruns under different parameters do not overwrite each
   other.
+- Two LaTeX sources coexist in [latex/](latex/): `recommenders_v2.tex` is
+  the current working paper; `recommenders_commented.tex` is the original
+  paper with `\ignacio{}` margin annotations that informed v2. Keep both.
+
+## Workflow files
+
+This repo follows the knowledge-base `PROJECT_SETUP_WORKFLOW` scaffold:
+
+- [CLAUDE.md](CLAUDE.md) — per-project AI-agent context (stack, run/test
+  commands, mandatory first action).
+- [TODO_WORKFLOW.md](TODO_WORKFLOW.md) — cross-session task backlog plus
+  the canonical schema and append protocol for `worklog.jsonl`.
+- [HOUSEKEEPING.md](HOUSEKEEPING.md) — recurring static / test / health
+  check routine; latest report lives inline at the bottom.
+- `worklog.jsonl`, `housekeeping_log.jsonl` — append-only JSONL audit
+  logs (oldest first, one record per line, not registered with kb_mcp).
 
 ## Run
 
