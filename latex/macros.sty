@@ -1,0 +1,23 @@
+% latex/macros.sty
+% Local macros for this paper. Self-contained — no dependency on the
+% sibling latex_repo/shared/ directory.
+%
+% Originally a minimal subset of latex_repo/shared/macros.sty, kept here
+% so the paper builds standalone. Grow as the paper does.
+%
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{macros}[2026/05/28 v0.1 recommender_epistemic_diversity local macros]
+
+% ============================================================================
+% Author annotations — coloured inline comments for drafting
+% ----------------------------------------------------------------------------
+% Requires \usepackage{xcolor} in the loading paper. Intended for in-draft
+% annotations that should be visually distinct from body text; remove or
+% redefine before submission.
+
+% Ignacio's drafting comment — wraps its argument in blue body text.
+\newcommand{\ignacio}[1]{\textcolor{blue}{#1}}
+
+% Michale's drafting comment
+\newcommand{\michael}[1]{\textcolor{red}{#1}}
+\endinput
