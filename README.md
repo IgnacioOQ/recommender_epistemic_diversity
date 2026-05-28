@@ -120,4 +120,7 @@ cd latex && latexmk
 ```
 
 The `.latexmkrc` pins lualatex + biber, sends aux files to `build/`, and
-drops the final PDF alongside the `.tex`.
+drops the final PDF alongside the `.tex`. See
+[LATEX_TYPESETTING_EXPLANATION.md](LATEX_TYPESETTING_EXPLANATION.md) for
+the full toolchain reference (prerequisites, what `.latexmkrc` locks
+down, common flags, troubleshooting, and adding a bibliography).
