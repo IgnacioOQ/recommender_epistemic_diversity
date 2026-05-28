@@ -8,8 +8,11 @@
 \usepackage{enumitem}
 \usepackage{setspace}
 \usepackage{xcolor}
-\usepackage{macros}     % provides \ignacio{...} from local macros.sty
 \usepackage[colorlinks=true, linkcolor=blue, citecolor=blue, urlcolor=blue]{hyperref}
+
+% Drafting annotations — coloured inline comments. Requires xcolor (loaded above).
+\newcommand{\ignacio}[1]{\textcolor{blue}{#1}}
+\newcommand{\michael}[1]{\textcolor{red}{#1}}
 
 \linespread{1.15}
 

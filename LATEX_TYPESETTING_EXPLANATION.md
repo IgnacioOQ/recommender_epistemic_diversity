@@ -61,11 +61,13 @@ latex/
 
 When a build fails, the truth is in `build/<jobname>.log`. Errors there are prefixed `file:line:` thanks to `-file-line-error`.
 
-## Local macros
+## Macros
 
-`\usepackage{macros}` resolves to [latex/macros.sty](latex/macros.sty) (current-directory-first search). The file currently defines only the drafting-comment commands (`\ignacio{...}`, `\michael{...}`). Add more macros there as the paper needs them — one `\newcommand` per concept, with a one-line comment above explaining what it does. The package requires `xcolor` to be loaded by the calling `.tex` before `\usepackage{macros}`.
+Each `.tex` source defines its own macros inline in the preamble — there is no shared `macros.sty`. Keeps every file self-describing: the `\newcommand` definitions sit alongside the `\usepackage` calls that enable them.
 
-`recommenders_v2.tex` doesn't currently load `macros.sty` (it uses none of the drafting macros). `recommenders_commented.tex` does, for the `\ignacio{...}` margin annotations.
+Currently only [latex/recommenders_commented.tex](latex/recommenders_commented.tex) defines anything: two drafting-comment commands (`\ignacio{...}` in blue, `\michael{...}` in red), used for the margin annotations. They depend on `xcolor` being loaded earlier in the preamble. [latex/recommenders_v2.tex](latex/recommenders_v2.tex) defines no macros — it uses none.
+
+When the paper grows a macro that both `.tex` sources need, add the same `\newcommand` to both preambles. If that ever becomes painful, factor it back into a local `macros.sty` then.
 
 ## Common operations
 
@@ -101,7 +103,7 @@ Currently neither `.tex` source loads a bibliography. To wire one up:
 
 | Symptom | Likely cause | Fix |
 |:---|:---|:---|
-| `! LaTeX Error: File 'macros.sty' not found.` | Running `lualatex` from outside [latex/](latex/), or the file was deleted. | `cd latex` first, or restore the file from git. |
+| `! Undefined control sequence. \ignacio` | The `.tex` file is missing its inline `\newcommand{\ignacio}{...}` definition (or the file was edited to remove it). | Restore the `\newcommand` in the preamble — see [recommenders_commented.tex](latex/recommenders_commented.tex). |
 | Cross-references show as `??` in the PDF. | Single-pass build before refs stabilised. | Run `latexmk` again (it normally handles this automatically; if not, `latexmk -gg` forces a full rebuild). |
 | Build leaves stale `build/*.aux` after a rename. | `latexmk` doesn't garbage-collect aux for removed jobs. | `latexmk -C` to clean. |
 | `lualatex` runs slow. | Expected — lualatex is heavier than pdflatex. | For draft cycles, `latexmk -pvc` recompiles only on change. To switch engine, set `$pdf_mode = 1` (pdflatex) in `.latexmkrc`. |

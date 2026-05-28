@@ -14,6 +14,6 @@ $bibtex_use = 2;
 $aux_dir = 'build';
 $out_dir = '.';
 
-# Self-contained: macros.sty lives in this directory (./macros.sty), so the
-# default TeX search path (current directory first) resolves \usepackage{macros}
-# without any TEXINPUTS manipulation. No external bibliography is used either.
+# Self-contained: each .tex source defines whatever macros it needs inline
+# (no shared macros.sty), and no external bibliography is loaded, so the
+# default TeX search path is sufficient — no TEXINPUTS manipulation needed.
