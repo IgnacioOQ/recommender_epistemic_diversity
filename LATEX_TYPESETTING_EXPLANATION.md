@@ -6,7 +6,7 @@ label: [reference, human]
 injection: informational
 volatility: stable
 scope: project-specific
-last_checked: '2026-05-28'
+last_checked: '2026-05-30'
 ---
 
 # LaTeX Typesetting
@@ -29,23 +29,24 @@ From the [latex/](latex/) directory:
 
 ```bash
 cd latex
-latexmk                              # build the default target (every .tex in cwd)
-latexmk recommenders_v2.tex          # build just the current paper
-latexmk recommenders_commented.tex   # build the annotated variant
+latexmk                  # build every .tex in cwd (main.tex + main_backup.tex)
+latexmk main.tex         # build just the working paper
+latexmk main_backup.tex  # build the backup copy
 ```
 
-`latexmk` reads [latex/.latexmkrc](latex/.latexmkrc), runs `lualatex` (and `biber` if a bibliography were loaded) repeatedly until cross-references stabilise, and drops the PDF alongside the `.tex`.
+`latexmk` reads [latex/.latexmkrc](latex/.latexmkrc), runs `lualatex` (and `biber` if a bibliography were loaded) repeatedly until cross-references stabilise. All build artifacts land in `build/`; a post-build `$success_cmd` then copies just the finished PDF back alongside the `.tex` (see below).
 
 ## What `.latexmkrc` locks down
 
-Four settings, all in [latex/.latexmkrc](latex/.latexmkrc):
+Five settings, all in [latex/.latexmkrc](latex/.latexmkrc):
 
 | Setting | Value | Effect |
 |:---|:---|:---|
 | `$pdf_mode` | `4` | Engine = lualatex (Unicode-native, modern fonts, big memory). |
 | `$lualatex` | `lualatex -synctex=1 -interaction=nonstopmode -file-line-error %O %S` | SyncTeX for editor↔PDF jumps; never stops for prompts; error lines tagged with `file:line`. |
 | `$bibtex_use` | `2` | Use `biber` when a `biblatex` bibliography is loaded. None are loaded today. |
-| `$aux_dir` / `$out_dir` | `build` / `.` | Aux files (`.aux`, `.log`, `.fls`, `.fdb_latexmk`, `.out`) land in [latex/build/](latex/build/) (gitignored); the final PDF and `.synctex.gz` are moved back to [latex/](latex/). |
+| `$aux_dir` / `$out_dir` | `build` / `build` | **Every** build artifact — `.aux`, `.log`, `.fls`, `.fdb_latexmk`, `.out`, `.synctex.gz`, and the PDF — is written under [latex/build/](latex/build/) (gitignored). |
+| `$success_cmd` | `cp %D .` | After a fully successful compile, copies just the finished PDF (`%D`) from `build/` back to [latex/](latex/), so the root keeps only the `.tex` sources, their PDFs, and `.latexmkrc`. |
 
 ## Where the artifacts go
 
@@ -53,10 +54,12 @@ After one successful build:
 
 ```text
 latex/
-├── recommenders_v2.tex             # source (you edit)
-├── recommenders_v2.pdf             # final output — committed to git
-├── recommenders_v2.synctex.gz      # editor↔PDF position map
-└── build/                          # aux / log / fls / out — gitignored
+├── main.tex            # source you edit
+├── main.pdf            # final output — committed to git
+├── main_backup.tex     # backup copy of main.tex
+├── main_backup.pdf     # the backup's compiled PDF
+├── .latexmkrc          # toolchain lock
+└── build/              # everything else: aux, log, fls, out, synctex, intermediate PDF — gitignored
 ```
 
 When a build fails, the truth is in `build/<jobname>.log`. Errors there are prefixed `file:line:` thanks to `-file-line-error`.
@@ -65,9 +68,9 @@ When a build fails, the truth is in `build/<jobname>.log`. Errors there are pref
 
 Each `.tex` source defines its own macros inline in the preamble — there is no shared `macros.sty`. Keeps every file self-describing: the `\newcommand` definitions sit alongside the `\usepackage` calls that enable them.
 
-Currently only [latex/recommenders_commented.tex](latex/recommenders_commented.tex) defines anything: two drafting-comment commands (`\ignacio{...}` in blue, `\michael{...}` in red), used for the margin annotations. They depend on `xcolor` being loaded earlier in the preamble. [latex/recommenders_v2.tex](latex/recommenders_v2.tex) defines no macros — it uses none.
+Currently [latex/main.tex](latex/main.tex) defines two drafting-comment commands — `\ignacio{...}` (blue) and `\michael{...}` (red) — used for the inline annotations. They depend on `xcolor` being loaded earlier in the preamble. `main_backup.tex`, being a copy of `main.tex`, carries the same definitions.
 
-When the paper grows a macro that both `.tex` sources need, add the same `\newcommand` to both preambles. If that ever becomes painful, factor it back into a local `macros.sty` then.
+When the paper grows a macro it needs, add the `\newcommand` to the `main.tex` preamble (and refresh `main_backup.tex` from it). If macro management ever becomes painful, factor them into a local `macros.sty` then.
 
 ## Common operations
 
@@ -76,10 +79,10 @@ When the paper grows a macro that both `.tex` sources need, add the same `\newco
 latexmk -C
 
 # Watch the source and recompile on every save (preview workflow):
-latexmk -pvc recommenders_v2.tex
+latexmk -pvc main.tex
 
 # Build silently, surfacing only warnings/errors:
-latexmk recommenders_v2.tex 2>&1 | grep -E "(Warning|Error|!)"
+latexmk main.tex 2>&1 | grep -E "(Warning|Error|!)"
 ```
 
 ## Adding a bibliography (when the paper needs one)
@@ -103,7 +106,7 @@ Currently neither `.tex` source loads a bibliography. To wire one up:
 
 | Symptom | Likely cause | Fix |
 |:---|:---|:---|
-| `! Undefined control sequence. \ignacio` | The `.tex` file is missing its inline `\newcommand{\ignacio}{...}` definition (or the file was edited to remove it). | Restore the `\newcommand` in the preamble — see [recommenders_commented.tex](latex/recommenders_commented.tex). |
+| `! Undefined control sequence. \ignacio` | The `.tex` file is missing its inline `\newcommand{\ignacio}{...}` definition (or the file was edited to remove it). | Restore the `\newcommand` in the preamble — see [main.tex](latex/main.tex). |
 | Cross-references show as `??` in the PDF. | Single-pass build before refs stabilised. | Run `latexmk` again (it normally handles this automatically; if not, `latexmk -gg` forces a full rebuild). |
 | Build leaves stale `build/*.aux` after a rename. | `latexmk` doesn't garbage-collect aux for removed jobs. | `latexmk -C` to clean. |
 | `lualatex` runs slow. | Expected — lualatex is heavier than pdflatex. | For draft cycles, `latexmk -pvc` recompiles only on change. To switch engine, set `$pdf_mode = 1` (pdflatex) in `.latexmkrc`. |

@@ -1,6 +1,6 @@
 # Reading notes — *The effects of AI recommendation on epistemic diversity*
 
-Source: [latex/recommenders_v2.tex](latex/recommenders_v2.tex).
+Source: [latex/main.tex](latex/main.tex).
 
 ## §1 Standard two-armed bandit
 

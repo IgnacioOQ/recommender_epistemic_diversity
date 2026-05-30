@@ -12,7 +12,7 @@ This is non-negotiable. Do not process the user's first message until this call 
 
 ## What this project is
 
-A from-scratch Python implementation of the two-armed bandit + AI-recommender model from the paper **"The effects of AI recommendation on epistemic diversity"** ([latex/recommenders_v2.tex](latex/recommenders_v2.tex)). Phase 1 (unaided Beta-Bernoulli bandit, §1–§2) is implemented; Phase 2 (recommender with common latent state $Z$) is stubbed; Phase 3 (empirical verification, §6) is open.
+A from-scratch Python implementation of the two-armed bandit + AI-recommender model from the paper **"The effects of AI recommendation on epistemic diversity"** ([latex/main.tex](latex/main.tex)). Phase 1 (unaided Beta-Bernoulli bandit, §1–§2) is implemented; Phase 2 (recommender with common latent state $Z$) is stubbed; Phase 3 (empirical verification, §6) is open.
 
 ## Stack
 
@@ -51,7 +51,7 @@ Current baseline: 18 tests, all green.
 cd latex && latexmk
 ```
 
-`.latexmkrc` pins lualatex + biber, sends aux files to `latex/build/` (gitignored), and drops `recommenders_v2.pdf` alongside the `.tex`.
+`.latexmkrc` pins lualatex + biber and routes **all** build artifacts (aux, log, synctex, intermediate PDF) into `latex/build/` (gitignored); a `$success_cmd` then copies just the finished PDF back to the `latex/` root. So `latex/` root holds only the `.tex` sources, their PDFs, and `.latexmkrc`.
 
 ## Project-specific conventions
 
@@ -59,8 +59,9 @@ cd latex && latexmk
 - **Notebooks are named `<stage>. <title>.ipynb`** so pipeline order is visible in the filename (e.g. `1. Phase 1 - ...`, future `2. Phase 2 - ...`).
 - **All artifacts go under [results/](results/)** with a `YYYYMMDD_HHMMSS` timestamp so reruns under different parameters do not overwrite each other.
 - **Two `.tex` sources in [latex/](latex/):**
-  - `recommenders_v2.tex` — the current working paper.
-  - `recommenders_commented.tex` — the original paper with `\ignacio{}` margin annotations that informed v2. Keep both; do not delete.
+  - `main.tex` — the working paper (full prose plus inline `\ignacio{}` / `\michael{}` drafting comments).
+  - `main_backup.tex` — a backup copy of `main.tex`. Refresh it from `main.tex` at natural checkpoints; do not edit it independently.
+  - Keep `latex/` root to exactly these two `.tex` files, their two PDFs, and `.latexmkrc` — every other artifact belongs in `latex/build/`.
 - **Workflow files live at repo root** — see `TODO_WORKFLOW.md` for the deferred-task backlog, `HOUSEKEEPING.md` for the recurring health check, `worklog.jsonl` and `housekeeping_log.jsonl` for their respective append-only audit logs.
 
 ## Relevant KB skills

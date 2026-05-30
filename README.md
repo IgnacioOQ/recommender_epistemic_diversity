@@ -2,8 +2,8 @@
 
 - **Authors:** (working draft, unattributed)
 - **Year:** 2026
-- **Source:** [latex/recommenders_v2.tex](latex/recommenders_v2.tex) /
-  [latex/recommenders_v2.pdf](latex/recommenders_v2.pdf)
+- **Source:** [latex/main.tex](latex/main.tex) /
+  [latex/main.pdf](latex/main.pdf)
 
 ## What this folder explores
 
@@ -42,11 +42,11 @@ recommender_epistemic_diversity/
 │
 ├── latex/                                       # paper source + compiled PDF
 │   ├── .latexmkrc                               # lualatex + biber toolchain locks
-│   ├── recommenders_v2.tex                      # current paper source
-│   ├── recommenders_v2.pdf                      # current compile
-│   ├── recommenders_commented.tex               # original paper with `\ignacio{}` margin notes
-│   ├── recommenders_commented.pdf               # compile of the annotated source
-│   └── build/                                   # latex aux files (gitignored)
+│   ├── main.tex                                 # working paper source (\ignacio/\michael notes)
+│   ├── main.pdf                                 # current compile
+│   ├── main_backup.tex                          # backup copy of main.tex
+│   ├── main_backup.pdf                          # compile of the backup
+│   └── build/                                   # all build artifacts: aux, log, synctex (gitignored)
 │
 ├── model/                                       # the model codebase (Phase 1)
 │   ├── __init__.py
@@ -78,9 +78,11 @@ recommender_epistemic_diversity/
 - All artifacts (CSVs, PNGs, pickles) go under [results/](results/) with
   a timestamp so reruns under different parameters do not overwrite each
   other.
-- Two LaTeX sources coexist in [latex/](latex/): `recommenders_v2.tex` is
-  the current working paper; `recommenders_commented.tex` is the original
-  paper with `\ignacio{}` margin annotations that informed v2. Keep both.
+- Two LaTeX sources coexist in [latex/](latex/): `main.tex` is the working
+  paper (full prose plus inline `\ignacio{}` / `\michael{}` drafting
+  comments); `main_backup.tex` is a backup copy of it. The `latex/` root is
+  kept to exactly these two `.tex` files, their two PDFs, and `.latexmkrc` —
+  every other build artifact lives in `latex/build/`.
 
 ## Workflow files
 
@@ -119,8 +121,9 @@ better arm" sanity check.
 cd latex && latexmk
 ```
 
-The `.latexmkrc` pins lualatex + biber, sends aux files to `build/`, and
-drops the final PDF alongside the `.tex`. See
+The `.latexmkrc` pins lualatex + biber and routes **all** build artifacts
+(aux, log, synctex, intermediate PDF) into `build/`; a `$success_cmd` then
+copies just the finished PDF back alongside the `.tex`. See
 [LATEX_TYPESETTING_EXPLANATION.md](LATEX_TYPESETTING_EXPLANATION.md) for
 the full toolchain reference (prerequisites, what `.latexmkrc` locks
 down, common flags, troubleshooting, and adding a bibliography).

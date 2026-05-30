@@ -1,4 +1,3 @@
-% !TEX root = recommenders_commented.tex
 \documentclass[12pt]{article}
 
 \usepackage[top=1in, bottom=1in, left=1in, right=1in]{geometry}
@@ -58,6 +57,8 @@ The community succeeds ($D$) if at least one agent succeeds, so
 
 \ignacio{\textbf{Decision still open.} Three operational definitions are implemented in \texttt{model/discovery.py} and can be swapped at evaluation time: (i) \emph{last-$k$}: agent has chosen $A$ on the last $k$ steps; (ii) \emph{posterior gap}: $E[p_A \mid h] - E[p_B \mid h] \geq \delta$; (iii) \emph{posterior probability}: $P(p_A > p_B \mid h) \geq 1 - \alpha$ via Monte Carlo. The phase-1 notebook estimates $\hat q$ under all three so we can decide which one matches the postulate $q \approx 0.05$ below, and the rigorous definition the paper needs.}
 
+\michael{Will these be asymptotically equivalent? It might not matter which one we choose if they will coincide with high probability after many trials. Happy to go with any or all of them for now.}
+
 \section{Unaided collective success}
 \label{sec:unaided}
 
@@ -69,6 +70,8 @@ Suppose that for all $i$
 I don't know how plausible this is, but the point is we're not assuming that any agent is very likely to succeed.
 
 \ignacio{$q = 0.05$ is a \emph{postulate}, not derived from $p_A, p_B$ or $T$. The phase-1 notebook reports $\hat q$ as a function of $(p_A, p_B, T, \text{prior}, \text{definition})$ so we can either back out parameters that yield $q \approx 0.05$, or argue from the model that some other value is the right anchor.}
+
+\michael{I don't think we should try to reverse engineer $q \approx 0.05$. This was just meant as an example. So, I think we should argue from the model that some other value is the right one.}
 
 Because the agents are independent, the probability that the community succeeds is much higher than the probability of individual success.
 With $n = 100$ agents,
@@ -108,12 +111,17 @@ Suppose
 \end{enumerate}
 The reading matters for the conditioning step in the next paragraph: under (1) the per-simulation correlation across agents (the \S\ref{sec:mech} mechanism) follows automatically because $Z$ is shared; under (3) the agent should arguably condition on $R_i^t$ jointly with their evolving posterior \emph{over} $Z$, not on a sampled $Z$ value. And under (2) it is unclear whether the community-level calculation in \S\ref{sec:improve} (which treats $Z$ as constant across the $n$ agents in a given community) is even well-posed --- it would need the recommender's mode to be constant across all $n$ agents within one community, which is a stronger claim than ``$F$ happens $1\%$ of the time''. Pinning this down before Phase 2 implementation.}
 
+\michael{Interpretation 2 is what I had in mind originally.}
+
+
 In the aided regime, every agent remains a myopic Bayesian but conditions on the AI recommendation before deciding which arm to pull.
 So, in the aided regime, first an agent conditions on his history to get the posterior $\pi_i^t$.
 Then he conditions on $R_i^t$.
 Finally, he chooses the arm with the higher $\pi_i^t(\,\cdot \mid R_i^t)$ expected payoff.
 
 \ignacio{Pending: \texttt{BetaBernoulliAgent.apply\_recommendation} currently raises \texttt{NotImplementedError}. To implement it we need a likelihood $P(R \mid \text{better arm}, h, \pi, Z)$ on the \texttt{Recommendation.likelihood} field. The agent's Bayes update on $R$ then folds that likelihood into the per-arm Beta posterior. \emph{Big modelling choice still open}: does the agent know $P(Z=G)$ and the per-state likelihoods? The paper's setup suggests yes (so the conditioning is a closed-form Bayes update on $Z$ first, then on $R$), but worth confirming.}
+
+\michael{I hadn't thought about whether the agents know the value of $P(Z=G)$. Perhaps both options are worth investigating eventually? I don't know. I suggest we start with whether is simplest.}
 
 \section{Model conjectures}
 \label{sec:conj}
@@ -125,12 +133,16 @@ I'm guessing that recommenders and recommendation likelihoods can be defined so 
 
 \ignacio{Pending: pick a concrete recommendation rule $\rho$ that realises these numbers. Candidate from \S\ref{sec:conj}: in $G$, $R$ matches the better arm $A$ with probability $1 - \eta_G$ (tunable); in $F$, $R = B$ with probability $1 - \eta_F$, concentrated at early stages where it bites hardest. Both $\eta_G$ and $\eta_F$ are then sweep parameters to calibrate against the targets $0.1$ and $\approx 0$.}
 
+\michael{$\rho$ doesn't have to realize exactly these numbers. Again, just examples. }
+
 One idea is that in the good state, the recommender is somewhat helpful and often nudges the agent toward the better arm $A$, raising the probability of discovery from $0.05$ to $0.1$.
 In the failure condition, the recommender gives misleading $B$ recommendations that prevent success almost surely.
 Suppose, for example, that at early stages, when continued sampling of $A$ is important, the recommender often recommends $B$.
 If there are enough early $B$ recommendations, the agent won't discover that $A$ is the good arm.
 
 \ignacio{The ``early $B$ bias in $F$'' suggests $\rho$ has time-dependent behaviour ($\eta_F = \eta_F(t)$), not just state-dependent. That is a non-trivial complication for the conditioning step in \S\ref{sec:airec}: the agent's likelihood must depend on $t$ too. Worth deciding before Phase 2 implementation: do we want stationary or non-stationary $\rho$?}
+
+\michael{I was thinking we shouldn't assume that $\rho$ is stationary, that it may exhibit time-dependent behavior.}
 
 \section{Individuals improve, the community gets worse}
 \label{sec:improve}

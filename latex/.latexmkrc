@@ -10,9 +10,17 @@ $lualatex = 'lualatex -synctex=1 -interaction=nonstopmode -file-line-error %O %S
 # is currently loaded by either .tex source).
 $bibtex_use = 2;
 
-# Aux files into build/; final PDF lands alongside the .tex
+# All build artifacts (aux, log, synctex, pdf) go to build/; only the final
+# PDF is copied back to the latex/ root via $success_cmd, so the root stays
+# limited to the .tex sources, their PDFs, and this config.
 $aux_dir = 'build';
-$out_dir = '.';
+$out_dir = 'build';
+
+# After a fully successful compile, copy the built PDF up to the latex/ root
+# (%D is the built PDF path inside build/). This is what keeps main.pdf /
+# main_backup.pdf sitting next to their .tex sources while everything else
+# (synctex, log, aux) remains in build/.
+$success_cmd = 'cp %D .';
 
 # Self-contained: each .tex source defines whatever macros it needs inline
 # (no shared macros.sty), and no external bibliography is loaded, so the
