@@ -92,33 +92,39 @@ First, the gap alone. Centering the arms at $\tfrac12$ (so $p_A = \tfrac12 + \De
 $\Delta$ & $0.002$ & $0.01$ & $0.05$ & $0.10$ & $0.20$ & $0.40$\\
 \midrule
 last-$k$ \,($k = 20$) & $0.52$ & $0.50$ & $0.58$ & $0.68$ & $0.79$ & $0.96$\\
-posterior gap \,($\delta = 0.05$) & $0.48$ & $0.47$ & $0.55$ & $0.65$ & $0.79$ & $0.96$\\
+posterior gap \,($\delta = \Delta/2$) & $0.52$ & $0.49$ & $0.57$ & $0.65$ & $0.72$ & $0.82$\\
 \bottomrule
 \end{tabular}
 \end{center}
 
-Second, the prior. Holding $\Delta = 0.01$ and $T = 200$ and instead concentrating the shared prior to $\mathrm{Beta}(s,s)$ gives the second table, and the two criteria part company. The posterior-gap probability collapses as $s$ grows: a tight prior pins both posteriors near $\tfrac12$, the belief gap rarely clears $\delta$, and $\hat q_{\text{gap}}$ crosses the target at $s \approx 55$, that is, a $\mathrm{Beta}(55,55)$ prior. The last-$k$ probability barely moves, sitting near $\tfrac12$ throughout: it records which arm is pulled, not how far beliefs have separated, and with the arms this close which arm the agent settles on is essentially a coin flip whatever $s$ is. So the practical knob for a target $q$ under the posterior-gap criterion is the prior concentration (or, equivalently, the horizon), not the gap; and the two criteria, asymptotically equivalent as $T \to \infty$, sit far apart in this finite-horizon, strong-prior regime. Making last-$k$ itself rare would instead require shortening the horizon toward $k$.
+Second, the prior. Holding the gap at $\Delta = 0.05$ and the horizon at $T = 1000$ and instead concentrating the shared prior to $\mathrm{Beta}(s,s)$ gives the second table, and the two criteria move in opposite directions. The posterior-gap probability collapses as $s$ grows: a strong symmetric prior pins both posterior means near $\tfrac12$ and must absorb on the order of $s$ observations before it can be moved, so within the horizon the belief gap rarely clears $\delta = \Delta/2 = 0.025$, and $\hat q_{\text{gap}}$ crosses the target at $s \approx 560$, that is, a $\mathrm{Beta}(560,560)$ prior. The last-$k$ probability moves the other way, climbing from $\approx 0.60$ under the flat prior to $\approx 0.93$ and staying there: last-$k$ records which arm is pulled, not how far beliefs have separated, and damping the early noise that would otherwise divert an agent only makes it likelier to settle on the genuinely better arm $A$. So the practical knob for a small target $q$ is the prior concentration under the posterior-gap criterion; the last-$k$ criterion cannot be made rare this way, and lowering it would instead require shortening the horizon toward $k$. The two criteria, which the absorption argument above renders approximately equivalent as $T \to \infty$ (both approaching $P(\text{settle on } A)$ to leading order, a value strictly below $1$), thus sit far apart in this finite-horizon, strong-prior regime.
 
 \begin{center}
 \small
-\begin{tabular}{lcccccc}
+\begin{tabular}{lcccccccc}
 \toprule
-\multicolumn{7}{c}{\textbf{Prior sweep} \quad (fixed $\Delta = 0.01$, $T = 200$, $n = 1500$; notebook 1c)}\\
+\multicolumn{9}{c}{\textbf{Prior sweep} \quad (fixed $\Delta = 0.05$, $\delta = \Delta/2 = 0.025$, $T = 1000$, $n = 300$; notebook 1c)}\\
 \midrule
-$s$ & $1$ & $10$ & $50$ & $100$ & $150$ & $200$\\
+$s$ & $1$ & $100$ & $300$ & $500$ & $800$ & $1200$ & $2000$ & $5000$\\
 \midrule
-last-$k$ \,($k = 20$) & $0.53$ & $0.51$ & $0.50$ & $0.50$ & $0.49$ & $0.48$\\
-posterior gap \,($\delta = 0.05$) & $0.49$ & $0.33$ & $0.06$ & $0.01$ & $0.00$ & $0.00$\\
+last-$k$ \,($k = 20$) & $0.60$ & $0.90$ & $0.91$ & $0.91$ & $0.92$ & $0.94$ & $0.93$ & $0.93$\\
+posterior gap \,($\delta = 0.025$) & $0.57$ & $0.63$ & $0.30$ & $0.07$ & $0.01$ & $0.00$ & $0.00$ & $0.00$\\
 \bottomrule
 \end{tabular}
 \end{center}
 
 \paragraph{The community baseline.}
-To fix ideas, suppose $q = 0.05$, which (by the prior sweep) the posterior-gap criterion reaches at this gap and horizon once the shared prior is concentrated to about $\mathrm{Beta}(55,55)$. In that regime no individual agent is at all likely to succeed. Because the agents are independent, the probability that the community succeeds is nonetheless much higher than the probability of individual success. With $n = 100$ agents,
+To fix ideas, suppose $q = 0.05$, which (by the prior sweep) the posterior-gap criterion reaches at this gap and horizon once the shared prior is concentrated to about $\mathrm{Beta}(560,560)$. In that regime no individual agent is at all likely to succeed. Because the agents are independent, the probability that the community succeeds is nonetheless much higher than the probability of individual success. With $n = 100$ agents,
 \[
   P(D) = 1 - (1-q)^n = 1 - 0.95^{100} \approx 0.994.
 \]
 This is the unaided baseline, and it is what the simulation produces: the measured fraction of communities in which at least one agent discovers $A$ agrees with the closed form $1 - (1-\hat q)^n$, because with no recommender the agents share no common state and so remain genuinely independent.
+
+\paragraph{Stationarity of $q$, and the status of the $\mathrm{Beta}(560,560)$ calibration.}
+\label{subsec:stationarity}
+It is worth being explicit about what kind of quantity the calibrated $q = 0.05$ is, because the strong prior that delivers it does so for a reason that does not survive a longer run. Two distinct notions of stationarity are in play. \emph{Behavioural} stationarity---the agent having settled on a single arm---is reached quickly: under the $\mathrm{Beta}(560,560)$ calibration roughly $94\%$ of agents have absorbed on one arm by $T = 1000$, so the last-$k$ criterion is already near its long-run value. \emph{Belief} stationarity---the posterior means having converged near the truth---is quite another matter, and it is what the posterior-gap criterion depends on. A $\mathrm{Beta}(s,s)$ prior contributes $2s$ pseudo-observations pinning each posterior mean at $\tfrac12$, so beliefs cannot converge until the real evidence outweighs them, i.e.\ until $T \gg 2s$. At $s \approx 560$, $T = 1000$ this is badly violated: the prior still carries more than half of the total weight, the mean posterior gap sits around $0.011$---well under $\delta = 0.025$---and it is still climbing. Sweeping the horizon at fixed $s = 800$ makes the point unambiguous: $\hat q_{\text{gap}}$ runs $0.003 \to 0.073 \to 0.18 \to 0.39$ as $T$ goes $1000 \to 2000 \to 4000 \to 8000$, heading toward the absorption ceiling rather than resting at $0.05$. \textbf{The $q = 0.05$ obtained from a strong prior is thus a finite-horizon transient: it is the fraction of agents whose beliefs have not \emph{yet} separated by $\delta$ at the chosen $T$, not a property the model settles into.}
+
+A stationary small $q$ is, moreover, not available in this unaided model at all. If instead the prior is flat ($s = 1$), beliefs converge well within $T = 1000$---the measured $q$ is essentially unchanged between $T = 1000$ and $T = 8000$ for every threshold---but then $q$ is floored near $\tfrac12$ and cannot be lowered by the threshold: with $\Delta = 0.05$ the stationary $q$ stays above $\approx 0.46$ even at $\delta = 0.14$, nearly triple the true gap. The reason is the absorption picture of the analytic-handle paragraph above: once beliefs converge every agent has committed to one arm, with separation of order $\Delta$, so almost everyone who settled on $A$ clears any $\delta \lesssim \Delta$, and ``settled on $A$'' is itself close to a coin flip at a small gap. The two routes to a small $q$ therefore exclude one another: a strong prior gives $q = 0.05$ but only transiently, while a prior weak enough to be stationary leaves $q$ near $\tfrac12$. Driving the \emph{stationary} discovery probability down to $0.05$ would require a structurally harder problem---a criterion with $\delta > \Delta$, more arms, or a cost that makes agents stop before converging---rather than a tighter prior. We retain the $\mathrm{Beta}(560,560)$, $T = 1000$ calibration as a deliberately finite-horizon operating point and read the tables accordingly.
 
 \section{AI recommender}
 \label{sec:airec}

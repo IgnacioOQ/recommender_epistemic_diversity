@@ -5,6 +5,7 @@
 \usepackage{mathptmx}
 \usepackage{amsmath, amssymb, amsthm}
 \usepackage{enumitem}
+\usepackage{booktabs}
 \usepackage{setspace}
 \usepackage{xcolor}
 \usepackage[colorlinks=true, linkcolor=blue, citecolor=blue, urlcolor=blue]{hyperref}
@@ -22,9 +23,13 @@
 \begin{document}
 \maketitle
 
-\ignacio{Drafting-comments edition. Phase 1 (the unaided two-armed bandit of \S\ref{sec:bandit}--\ref{sec:unaided}) is implemented in \texttt{papers/recommenders/model/}: \texttt{BernoulliBandit}, \texttt{BetaBernoulliAgent} with independent Beta priors per arm, a \texttt{NullRecommender} stub, three candidate definitions of $D_i$ in \texttt{discovery.py}, and an orchestrator \texttt{run\_simulation} (reproducible via \texttt{SeedSequence}-spawned per-agent RNGs). Notebook \texttt{experiments/1.\ Phase 1 - Unaided Bandit.ipynb} reproduces \S\ref{sec:unaided}. Phase 2 (the recommender, \S\ref{sec:airec}--\ref{sec:improve}) is wired but not yet behaviourally implemented.}
+I describe a simple model (sections~\ref{sec:bandit}--\ref{sec:airec}), make some guesses about how the model may behave (section~\ref{sec:conj}), and discuss some potentially philosophically interesting consequences of these conjectures (sections~\ref{sec:improve}--\ref{sec:mech}). The model comes with a small Python implementation, which I outline before turning to the model itself.
 
-I describe a simple model (sections~\ref{sec:bandit}--\ref{sec:airec}), make some guesses about how the model may behave (section~\ref{sec:conj}), and discuss some potentially philosophically interesting consequences of these conjectures (sections~\ref{sec:improve}--\ref{sec:mech}).
+\section*{Implementation}
+
+The model is realised as a small, self-contained Python package, \texttt{model/}, with one module per modelling primitive. \texttt{BernoulliBandit} holds the two arms and their Bernoulli means and enforces $p_A > p_B$. \texttt{BetaBernoulliAgent} is a single agent: it keeps one Beta posterior per arm, chooses by posterior mean, and performs the conjugate update on each observed payoff. \texttt{Recommender} is the interface for the AI of sections~\ref{sec:airec}--\ref{sec:improve}; in this phase the only concrete implementation is \texttt{NullRecommender}, which abstains, so the simulation reduces to the unaided regime. \texttt{discovery.py} collects the operational definitions of the discovery event $D_i$ (section~\ref{sec:bandit}), and \texttt{run\_simulation} is the orchestrator.
+
+The simulation is a single loop. A community of $n$ agents faces the shared bandit for $T$ stages; at each stage every agent (i)~optionally receives a recommendation, (ii)~pulls the arm with the higher posterior expected payoff, (iii)~observes a Bernoulli payoff, and (iv)~updates the posterior of the pulled arm. Each agent draws from its own random stream, spawned from one master seed via \texttt{SeedSequence.spawn}, so the agents are statistically independent yet the run as a whole is reproducible. The accompanying notebook reproduces the unaided results of section~\ref{sec:unaided}; the recommender of section~\ref{sec:airec} onward is wired into the interface but not yet behaviourally implemented.
 
 \section{Standard two-armed bandit}
 \label{sec:bandit}
@@ -34,52 +39,92 @@ There are two arms, $A$ and $B$.
 Arm $A$ has mean payoff $p_A$.
 Arm $B$ has mean payoff $p_B$.
 Assume $p_A > p_B$, so $A$ is the better arm.
-
-\ignacio{Implemented as \texttt{BernoulliBandit(p\_a, p\_b)} with strict $p_A > p_B$ validation. Pending modelling choice: the paper does not specify the payoff distribution; the Beta-prior choice below strongly implies \emph{Bernoulli} rewards via Beta-Bernoulli conjugacy, and that is what the code assumes. If we want continuous payoffs in $[0,1]$ instead, the conjugate update changes and \texttt{BernoulliBandit.pull} needs revisiting.}
+We take the payoffs to be Bernoulli: pulling an arm returns $1$ with probability equal to that arm's mean and $0$ otherwise. This is the natural choice here, because Bernoulli payoffs are conjugate to the Beta beliefs the agents carry below, so each observation updates a belief in closed form.
 
 There are $n$ agents.
 Assume for now that agents do not communicate or observe others' payoffs.
-Each agent has a Beta prior over $p_A$ and $p_B$.
-Agents condition on their observed payoffs.
-
-\ignacio{Implemented as \texttt{BetaBernoulliAgent} with two \emph{independent} Beta posteriors, one per arm (row $i$ of \texttt{alpha\_beta} is $[\alpha_i, \beta_i]$). Default prior is uniform $\mathrm{Beta}(1,1)$ per arm. Pending: do we want a non-uniform shared prior across the community? Currently all agents start from the same prior.}
+Each agent carries two independent Beta beliefs, one over $p_A$ and one over $p_B$; unless stated otherwise these start uniform, $\mathrm{Beta}(1,1)$, and the same prior is shared across the community. Because the payoffs are Bernoulli, an agent conditions on an observed payoff by the conjugate update: a success increments that arm's $\alpha$, a failure its $\beta$. Each agent conditions only on its own payoffs.
 
 Every agent is a myopic Bayesian.
-At every stage, they choose whichever arm has the higher posterior expected payoff.
+At every stage it pulls the arm with the higher posterior expected payoff, that is, the arm with the larger posterior mean $\alpha_i/(\alpha_i + \beta_i)$, breaking ties uniformly at random.
 
-\ignacio{Implemented in \texttt{BetaBernoulliAgent.choose\_arm}: pick the arm with higher posterior mean $\alpha_i / (\alpha_i + \beta_i)$; ties broken uniformly at random with a per-agent RNG.}
+Let $D_i$ be the event that agent $i$ discovers which is the better arm. We make this precise through two operational criteria, both evaluated on the agent's state at the end of the run and both implemented in \texttt{discovery.py}:
+\begin{enumerate}[leftmargin=*]
+  \item \emph{Last-$k$}: the agent's last $k$ pulls are all of arm $A$, so it has, in effect, settled on the better arm.
+  \item \emph{Posterior gap}: the agent's posterior means separate in the right direction by at least a margin $\delta$, that is $E[p_A \mid h] - E[p_B \mid h] \geq \delta$.
+\end{enumerate}
+The two criteria need not agree on any single run, but they coincide with high probability once the horizon is long: an agent that has pulled $A$ for many consecutive steps has typically also built up a posterior-mean gap in $A$'s favour, and conversely. We therefore treat $D_i$ as well defined up to this asymptotic equivalence and report results under both criteria.
 
-Let $D_i$ be the event that agent $i$ discovers which is the better arm (this needs to be defined rigorously eventually).
 The community succeeds ($D$) if at least one agent succeeds, so
 \[
   D = D_1 \cup \cdots \cup D_n.
 \]
 
-\ignacio{\textbf{Decision still open.} Three operational definitions are implemented in \texttt{model/discovery.py} and can be swapped at evaluation time: (i) \emph{last-$k$}: agent has chosen $A$ on the last $k$ steps; (ii) \emph{posterior gap}: $E[p_A \mid h] - E[p_B \mid h] \geq \delta$; (iii) \emph{posterior probability}: $P(p_A > p_B \mid h) \geq 1 - \alpha$ via Monte Carlo. The phase-1 notebook estimates $\hat q$ under all three so we can decide which one matches the postulate $q \approx 0.05$ below, and the rigorous definition the paper needs.}
-
-\michael{Will these be asymptotically equivalent? It might not matter which one we choose if they will coincide with high probability after many trials. Happy to go with any or all of them for now.}
-
 \section{Unaided collective success}
 \label{sec:unaided}
 
-I use $P$ for the ``objective'' probabilities determined by the model specifications.
-Suppose that for all $i$
+I use $P$ for the ``objective'' probabilities determined by the model specifications. Write $q = P(D_i)$ for the individual discovery probability, which by symmetry is the same for every agent.
+
+\paragraph{What fixes $q$.}
+Under this objective reading $q$ is not a free parameter; it is fixed by four ingredients: the gap between the arms, the horizon, the prior, and the discovery criterion. The gap is the primary driver. Writing $\Delta = p_A - p_B$, when $\Delta$ is large the arms are easy to tell apart and $q$ is high, whereas as $\Delta \to 0$ they become statistically indistinguishable and $q$ falls toward the level a non-discovering agent would reach by chance. The horizon $T$ controls how much evidence an agent can gather, so $q$ increases with $T$, though (as discussed below) it does not approach $1$. The criterion enters through its tolerance: the window $k$ for last-$k$ and the margin $\delta$ for the posterior gap, with a looser criterion (smaller $k$ or smaller $\delta$) counting more agents as successful and so raising $q$. Rather than postulate a value for $q$, then, we read it off the model for a given gap, horizon, prior, and criterion.
+
+\paragraph{The prior.}
+It is worth being explicit about how the simulation initialises the beliefs, since the prior sets each agent's starting point and its early inertia. Every agent begins each arm at a uniform $\mathrm{Beta}(1,1)$ belief, and all $n$ agents in a community are given the same prior. A $\mathrm{Beta}(1,1)$ is flat on $[0,1]$: it expresses no preference between the arms, so both posterior means start at $\tfrac12$ and the first pull is a coin flip, and it lets the earliest observations move a belief a long way, since after $a$ successes and $b$ failures on an arm the posterior mean is $(a+1)/(a+b+2)$. A more concentrated prior $\mathrm{Beta}(\alpha_0,\beta_0)$ with larger $\alpha_0+\beta_0$ would damp those early swings and make an agent harder to divert from a good arm; an asymmetric prior would bias which arm an agent favours before seeing any data. We keep the flat, shared prior as a neutral baseline and treat $(\alpha_0,\beta_0)$ as a knob to revisit.
+
+\paragraph{An analytic handle as $T \to \infty$.}
+The myopic rule never explores for its own sake; it always pulls the arm it currently believes is better, and this makes the long-run behaviour tractable. If both arms were pulled infinitely often, their posterior means would converge to $p_A$ and $p_B$; since $p_A > p_B$ the agent would then prefer $A$ from some point on, contradicting infinitely many $B$-pulls. So each agent pulls one arm only finitely often and the other forever: the play \emph{absorbs} on a single arm. In this limit the last-$k$ criterion becomes exactly the event that the agent absorbs on $A$, and the posterior-gap criterion becomes that same event together with the mild condition that the final gap clears $\delta$; to leading order both give
 \[
-  P(D_i) = q = 0.05.
+  q \;=\; P(\text{the agent settles on } A).
 \]
-I don't know how plausible this is, but the point is we're not assuming that any agent is very likely to succeed.
+This probability lies strictly between $0$ and $1$. It is below $1$ because of \emph{incomplete learning}: an unlucky early run on $A$ can pull its posterior mean below that of $B$, so the agent switches to $B$; if by then $A$'s mean has fallen below $p_B$, then once $B$'s posterior mean settles near $p_B$ it stays above $A$'s frozen value forever, and the agent never samples $A$ again or collects the evidence that would correct it. It is above $0$ because a good early run locks the agent onto $A$ in the same way. There is no elementary closed form at general $(p_A, p_B)$: writing $f(\alpha_A, \beta_A, \alpha_B, \beta_B)$ for the probability of eventually settling on $A$ from a given pair of Beta states, $q = f(\alpha_0, \beta_0, \alpha_0, \beta_0)$ solves a fixed-point recursion over those states, which the Phase 1 simulation evaluates by Monte Carlo rather than in closed form. What is clear analytically is the shape: $q$ increases with the gap $\Delta$, it stays strictly below $1$ for every finite gap while approaching $1$ as the gap widens, and the prior enters only through the common starting state. This ceiling below $1$ is what makes the community question non-trivial; if individuals discovered $A$ almost surely there would be nothing for the AI to spoil.
 
-\ignacio{$q = 0.05$ is a \emph{postulate}, not derived from $p_A, p_B$ or $T$. The phase-1 notebook reports $\hat q$ as a function of $(p_A, p_B, T, \text{prior}, \text{definition})$ so we can either back out parameters that yield $q \approx 0.05$, or argue from the model that some other value is the right anchor.}
+\paragraph{Simulation: calibrating $q$.}
+Two short simulation studies make this concrete and were used to choose parameters; both run the unaided model with $n$ independent agents and report $\hat q$ as the fraction of agents satisfying each criterion at the end of the run. The notebooks are \texttt{experiments/1b.\ Phase 1 - Gap-to-q Calibration.ipynb} (the gap sweep) and \texttt{experiments/1c.\ Phase 1 - Prior-to-q Calibration.ipynb} (the prior sweep).
 
-\michael{I don't think we should try to reverse engineer $q \approx 0.05$. This was just meant as an example. So, I think we should argue from the model that some other value is the right one.}
+First, the gap alone. Centering the arms at $\tfrac12$ (so $p_A = \tfrac12 + \Delta/2$ and $p_B = \tfrac12 - \Delta/2$), fixing the flat $\mathrm{Beta}(1,1)$ prior and $T = 200$, and sweeping $\Delta$ gives the table below. Both criteria increase with $\Delta$, confirming that the gap is the primary driver, yet neither comes near $0.05$: as $\Delta \to 0$ they level off at a floor close to $\tfrac12$. This is the absorption picture above. With a vanishing gap the agent still settles on one arm, but which arm is essentially a coin flip, so ``settled on $A$'' has probability $\approx \tfrac12$. The gap on its own cannot manufacture a rare-discovery regime.
 
-Because the agents are independent, the probability that the community succeeds is much higher than the probability of individual success.
-With $n = 100$ agents,
+\begin{center}
+\small
+\begin{tabular}{lcccccc}
+\toprule
+\multicolumn{7}{c}{\textbf{Gap sweep} \quad ($\mathrm{Beta}(1,1)$ prior, $T = 200$, $n = 1500$ per gap; notebook 1b)}\\
+\midrule
+$\Delta$ & $0.002$ & $0.01$ & $0.05$ & $0.10$ & $0.20$ & $0.40$\\
+\midrule
+last-$k$ \,($k = 20$) & $0.52$ & $0.50$ & $0.58$ & $0.68$ & $0.79$ & $0.96$\\
+posterior gap \,($\delta = \Delta/2$) & $0.52$ & $0.49$ & $0.57$ & $0.65$ & $0.72$ & $0.82$\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Second, the prior. Holding the gap at $\Delta = 0.05$ and the horizon at $T = 1000$ and instead concentrating the shared prior to $\mathrm{Beta}(s,s)$ gives the second table, and the two criteria move in opposite directions. The posterior-gap probability collapses as $s$ grows: a strong symmetric prior pins both posterior means near $\tfrac12$ and must absorb on the order of $s$ observations before it can be moved, so within the horizon the belief gap rarely clears $\delta = \Delta/2 = 0.025$, and $\hat q_{\text{gap}}$ crosses the target at $s \approx 560$, that is, a $\mathrm{Beta}(560,560)$ prior. The last-$k$ probability moves the other way, climbing from $\approx 0.60$ under the flat prior to $\approx 0.93$ and staying there: last-$k$ records which arm is pulled, not how far beliefs have separated, and damping the early noise that would otherwise divert an agent only makes it likelier to settle on the genuinely better arm $A$. So the practical knob for a small target $q$ is the prior concentration under the posterior-gap criterion; the last-$k$ criterion cannot be made rare this way, and lowering it would instead require shortening the horizon toward $k$. The two criteria, which the absorption argument above renders approximately equivalent as $T \to \infty$ (both approaching $P(\text{settle on } A)$ to leading order, a value strictly below $1$), thus sit far apart in this finite-horizon, strong-prior regime.
+
+\begin{center}
+\small
+\begin{tabular}{lcccccccc}
+\toprule
+\multicolumn{9}{c}{\textbf{Prior sweep} \quad (fixed $\Delta = 0.05$, $\delta = \Delta/2 = 0.025$, $T = 1000$, $n = 300$; notebook 1c)}\\
+\midrule
+$s$ & $1$ & $100$ & $300$ & $500$ & $800$ & $1200$ & $2000$ & $5000$\\
+\midrule
+last-$k$ \,($k = 20$) & $0.60$ & $0.90$ & $0.91$ & $0.91$ & $0.92$ & $0.94$ & $0.93$ & $0.93$\\
+posterior gap \,($\delta = 0.025$) & $0.57$ & $0.63$ & $0.30$ & $0.07$ & $0.01$ & $0.00$ & $0.00$ & $0.00$\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\paragraph{The community baseline.}
+To fix ideas, suppose $q = 0.05$, which (by the prior sweep) the posterior-gap criterion reaches at this gap and horizon once the shared prior is concentrated to about $\mathrm{Beta}(560,560)$. In that regime no individual agent is at all likely to succeed. Because the agents are independent, the probability that the community succeeds is nonetheless much higher than the probability of individual success. With $n = 100$ agents,
 \[
   P(D) = 1 - (1-q)^n = 1 - 0.95^{100} \approx 0.994.
 \]
+This is the unaided baseline, and it is what the simulation produces: the measured fraction of communities in which at least one agent discovers $A$ agrees with the closed form $1 - (1-\hat q)^n$, because with no recommender the agents share no common state and so remain genuinely independent.
 
-\ignacio{Empirically verified in the phase-1 notebook: $\widehat{P(D)}$ (fraction of trials with at least one $D_i$ true) and the closed-form $1 - (1-\hat q)^n$ are reported side by side and should agree, since the unaided agents are genuinely independent (no shared state).}
+\paragraph{Stationarity of $q$, and the status of the $\mathrm{Beta}(560,560)$ calibration.}
+\label{subsec:stationarity}
+It is worth being explicit about what kind of quantity the calibrated $q = 0.05$ is, because the strong prior that delivers it does so for a reason that does not survive a longer run. Two distinct notions of stationarity are in play. \emph{Behavioural} stationarity---the agent having settled on a single arm---is reached quickly: under the $\mathrm{Beta}(560,560)$ calibration roughly $94\%$ of agents have absorbed on one arm by $T = 1000$, so the last-$k$ criterion is already near its long-run value. \emph{Belief} stationarity---the posterior means having converged near the truth---is quite another matter, and it is what the posterior-gap criterion depends on. A $\mathrm{Beta}(s,s)$ prior contributes $2s$ pseudo-observations pinning each posterior mean at $\tfrac12$, so beliefs cannot converge until the real evidence outweighs them, i.e.\ until $T \gg 2s$. At $s \approx 560$, $T = 1000$ this is badly violated: the prior still carries more than half of the total weight, the mean posterior gap sits around $0.011$---well under $\delta = 0.025$---and it is still climbing. Sweeping the horizon at fixed $s = 800$ makes the point unambiguous: $\hat q_{\text{gap}}$ runs $0.003 \to 0.073 \to 0.18 \to 0.39$ as $T$ goes $1000 \to 2000 \to 4000 \to 8000$, heading toward the absorption ceiling rather than resting at $0.05$. \textbf{The $q = 0.05$ obtained from a strong prior is thus a finite-horizon transient: it is the fraction of agents whose beliefs have not \emph{yet} separated by $\delta$ at the chosen $T$, not a property the model settles into.}
+
+A stationary small $q$ is, moreover, not available in this unaided model at all. If instead the prior is flat ($s = 1$), beliefs converge well within $T = 1000$---the measured $q$ is essentially unchanged between $T = 1000$ and $T = 8000$ for every threshold---but then $q$ is floored near $\tfrac12$ and cannot be lowered by the threshold: with $\Delta = 0.05$ the stationary $q$ stays above $\approx 0.46$ even at $\delta = 0.14$, nearly triple the true gap. The reason is the absorption picture of the analytic-handle paragraph above: once beliefs converge every agent has committed to one arm, with separation of order $\Delta$, so almost everyone who settled on $A$ clears any $\delta \lesssim \Delta$, and ``settled on $A$'' is itself close to a coin flip at a small gap. The two routes to a small $q$ therefore exclude one another: a strong prior gives $q = 0.05$ but only transiently, while a prior weak enough to be stationary leaves $q$ near $\tfrac12$. Driving the \emph{stationary} discovery probability down to $0.05$ would require a structurally harder problem---a criterion with $\delta > \Delta$, more arms, or a cost that makes agents stop before converging---rather than a tighter prior. We retain the $\mathrm{Beta}(560,560)$, $T = 1000$ calibration as a deliberately finite-horizon operating point and read the tables accordingly.
 
 \section{AI recommender}
 \label{sec:airec}

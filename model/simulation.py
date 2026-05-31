@@ -118,7 +118,7 @@ def run_simulation(
         for i, agent in enumerate(agents):
             recommendation = recommender.recommend(
                 agent_id=i,
-                history=agent.history,
+                history=histories[i, :t],
                 posterior_alpha_beta=agent.alpha_beta,
                 rng=recommender_rng,
             )
