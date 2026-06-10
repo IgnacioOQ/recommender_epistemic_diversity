@@ -24,7 +24,14 @@ from model.discovery import (
     discovered_by_posterior_gap,
     discovered_by_posterior_probability,
 )
-from model.recommender import NullRecommender
+from model.recommender import (
+    Z_FAIL,
+    Z_GOOD,
+    ChoiceNudgeRecommender,
+    EvidenceSharingRecommender,
+    NullRecommender,
+    Recommendation,
+)
 from model.simulation import run_simulation
 
 
@@ -107,17 +114,119 @@ def test_agent_prefers_arm_with_higher_posterior_mean():
 
 
 def test_agent_recommendation_hook_is_phase2():
-    """NullRecommender returns None → hook never invoked. A non-None
-    recommendation would raise NotImplementedError (Phase 2 work)."""
-    from model.recommender import Recommendation
-
+    """NullRecommender returns None → hook never invoked. A bare
+    Recommendation (no payload) selects the explicit Bayes-conditioning
+    route, which remains NotImplemented."""
     agent = BetaBernoulliAgent(agent_id=0)
     rng = np.random.default_rng(0)
     # Passing None is fine — Phase 1 happy path.
     agent.choose_arm(rng, recommendation=None)
-    # Passing a real Recommendation is explicitly NOT supported yet.
+    # A payload-free Recommendation is explicitly NOT supported.
     with pytest.raises(NotImplementedError):
         agent.choose_arm(rng, recommendation=Recommendation(arm=ARM_A))
+
+
+def test_agent_shared_observation_updates_beliefs_not_history():
+    agent = BetaBernoulliAgent(agent_id=0)
+    rng = np.random.default_rng(0)
+    agent.choose_arm(rng, recommendation=Recommendation(arm=ARM_A, outcome=1))
+    assert np.allclose(agent.alpha_beta[ARM_A], [2.0, 1.0])  # belief moved
+    assert agent.history.shape == (0, 2)  # own-pull history untouched
+
+
+def test_agent_follows_nudge_with_given_probability():
+    rng = np.random.default_rng(1)
+    # follow_prob=1: always pulls the recommended (worse) arm, despite
+    # a posterior that strongly favors A.
+    agent = BetaBernoulliAgent(
+        agent_id=0, prior_alpha_beta=np.array([[10.0, 2.0], [2.0, 10.0]])
+    )
+    rec = Recommendation(arm=ARM_B, follow_prob=1.0)
+    assert all(agent.choose_arm(rng, recommendation=rec) == ARM_B for _ in range(20))
+    # follow_prob=0: nudge never fires, myopic choice prevails.
+    rec_never = Recommendation(arm=ARM_B, follow_prob=0.0)
+    assert all(agent.choose_arm(rng, recommendation=rec_never) == ARM_A for _ in range(20))
+
+
+# ---------- recommenders ----------------------------------------------------
+
+
+def test_evidence_sharing_state_arm_sources_and_labels():
+    bandit = BernoulliBandit(p_a=0.7, p_b=0.4)
+    rng = np.random.default_rng(0)
+    empty = np.empty((0, 2), dtype=np.int64)
+    # p_good=1 forces Z_GOOD: source and label are the better arm A.
+    good = EvidenceSharingRecommender(bandit, p_good=1.0, variant="state_arm")
+    recs = [good.recommend(0, empty, np.eye(2), rng) for _ in range(10)]
+    assert good.z == Z_GOOD
+    assert all(r.arm == ARM_A and r.outcome in (0, 1) for r in recs)
+    # p_good=0 forces Z_FAIL: honest variant samples and labels B.
+    bad = EvidenceSharingRecommender(bandit, p_good=0.0, variant="state_arm")
+    recs = [bad.recommend(0, empty, np.eye(2), rng) for _ in range(10)]
+    assert bad.z == Z_FAIL
+    assert all(r.arm == ARM_B for r in recs)
+
+
+def test_evidence_sharing_confused_swaps_labels_in_failure():
+    bandit = BernoulliBandit(p_a=0.7, p_b=0.4)
+    rng = np.random.default_rng(0)
+    t_even = np.empty((0, 2), dtype=np.int64)  # even step -> source A
+    t_odd = np.zeros((1, 2), dtype=np.int64)  # odd step -> source B
+    good = EvidenceSharingRecommender(bandit, p_good=1.0, variant="confused")
+    assert good.recommend(0, t_even, np.eye(2), rng).arm == ARM_A
+    assert good.recommend(0, t_odd, np.eye(2), rng).arm == ARM_B
+    bad = EvidenceSharingRecommender(bandit, p_good=0.0, variant="confused")
+    assert bad.recommend(0, t_even, np.eye(2), rng).arm == ARM_B  # A-draw labeled B
+    assert bad.recommend(0, t_odd, np.eye(2), rng).arm == ARM_A  # B-draw labeled A
+
+
+def test_community_z_is_drawn_once_and_per_share_reflips():
+    rng = np.random.default_rng(7)
+    community = ChoiceNudgeRecommender(p_good=0.5, z_mode="community")
+    empty = np.empty((0, 2), dtype=np.int64)
+    arms = {community.recommend(i, empty, np.eye(2), rng).arm for i in range(50)}
+    assert len(arms) == 1  # one community-wide Z -> one recommended arm
+    per_share = ChoiceNudgeRecommender(p_good=0.5, z_mode="per_share")
+    arms = {per_share.recommend(i, empty, np.eye(2), rng).arm for i in range(50)}
+    assert arms == {ARM_A, ARM_B}  # re-flipped Z -> both arms appear
+    assert per_share.z is None  # no single community Z to report
+
+
+def test_recommenders_validate_args():
+    bandit = BernoulliBandit(p_a=0.7, p_b=0.4)
+    with pytest.raises(ValueError):
+        ChoiceNudgeRecommender(p_good=1.5)
+    with pytest.raises(ValueError):
+        ChoiceNudgeRecommender(follow_prob=-0.1)
+    with pytest.raises(ValueError):
+        ChoiceNudgeRecommender(z_mode="sometimes")
+    with pytest.raises(ValueError):
+        EvidenceSharingRecommender(bandit, variant="helpful")
+
+
+def test_simulation_records_community_z():
+    bandit = BernoulliBandit(p_a=0.7, p_b=0.4)
+    rec = EvidenceSharingRecommender(bandit, p_good=1.0, z_mode="community")
+    result = run_simulation(bandit, n_agents=3, n_steps=10, recommender=rec, seed=5)
+    assert result.z == Z_GOOD
+    unaided = run_simulation(bandit, n_agents=3, n_steps=10, seed=5)
+    assert unaided.z is None
+
+
+def test_simulation_with_recommenders_is_reproducible():
+    bandit = BernoulliBandit(p_a=0.7, p_b=0.4)
+    runs = [
+        run_simulation(
+            bandit,
+            n_agents=5,
+            n_steps=30,
+            recommender=ChoiceNudgeRecommender(p_good=0.5, follow_prob=0.3),
+            seed=11,
+        )
+        for _ in range(2)
+    ]
+    assert np.array_equal(runs[0].histories, runs[1].histories)
+    assert runs[0].z == runs[1].z
 
 
 # ---------- discovery -------------------------------------------------------

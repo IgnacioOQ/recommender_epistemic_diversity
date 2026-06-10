@@ -42,12 +42,18 @@ class SimulationResult:
         Per-agent final Beta posteriors.
     seed : int
         The master seed used to derive per-agent seeds (see `run_simulation`).
+    z : str or None
+        The realized common latent state of the recommender (`Z_GOOD` /
+        `Z_FAIL`), when the recommender holds one (`z_mode='community'`).
+        None in the unaided regime and in `per_share` mode, where no single
+        community-level Z exists.
     """
 
     bandit: BernoulliBandit
     histories: np.ndarray
     final_alpha_beta: np.ndarray
     seed: int
+    z: str | None = None
 
     @property
     def n_agents(self) -> int:
@@ -135,4 +141,5 @@ def run_simulation(
         histories=histories,
         final_alpha_beta=final_alpha_beta,
         seed=seed,
+        z=getattr(recommender, "z", None),
     )

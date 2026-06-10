@@ -77,12 +77,26 @@ class BetaBernoulliAgent:
     ) -> int:
         """Pick the arm with higher posterior expected payoff (ties random).
 
-        If a `recommendation` is supplied, it is first folded into the
-        posterior via `apply_recommendation` (Phase 2 hook — no-op in
-        Phase 1 because `NullRecommender` returns None).
+        A supplied `recommendation` is consumed according to which of its
+        optional fields is set (see `Recommendation`):
+
+        - `follow_prob` — behavioural nudge (interpretation 2): with that
+          probability the recommended arm is pulled directly, bypassing the
+          myopic comparison; otherwise the recommendation is ignored.
+        - `outcome` — shared observation (interpretation 1): the draw is
+          folded into the labeled arm's posterior via `observe_shared`,
+          then the myopic comparison runs as usual.
+        - neither — the explicit Bayes-conditioning route, delegated to
+          `apply_recommendation` (not implemented).
         """
         if recommendation is not None:
-            self.apply_recommendation(recommendation)
+            if recommendation.follow_prob is not None:
+                if rng.random() < recommendation.follow_prob:
+                    return int(recommendation.arm)
+            elif recommendation.outcome is not None:
+                self.observe_shared(recommendation.arm, recommendation.outcome)
+            else:
+                self.apply_recommendation(recommendation)
 
         means = self.posterior_means
         max_val = means.max()
@@ -103,21 +117,40 @@ class BetaBernoulliAgent:
             self.alpha_beta[arm, 1] += 1.0
         self._history.append((int(arm), int(outcome)))
 
+    def observe_shared(self, arm: int, outcome: int) -> None:
+        """Conjugate update on a recommender-shared observation.
+
+        Identical to `observe` except the observation does **not** enter
+        the agent's pull history: `history` records the agent's own pulls
+        only (which is what the last-k criterion and the simulator's
+        history arrays are defined over). Used by the evidence-sharing
+        recommender of interpretation 1.
+        """
+        if arm not in (ARM_A, ARM_B):
+            raise ValueError(f"arm must be ARM_A or ARM_B; got {arm}")
+        if outcome not in (0, 1):
+            raise ValueError(f"outcome must be 0 or 1; got {outcome}")
+        if outcome == 1:
+            self.alpha_beta[arm, 0] += 1.0
+        else:
+            self.alpha_beta[arm, 1] += 1.0
+
     def apply_recommendation(self, recommendation: Recommendation) -> None:
-        """Fold a recommendation into the posterior.
+        """Fold a recommendation into the posterior by explicit conditioning.
 
-        Phase 2 hook. The paper's §3 protocol says the agent first
-        conditions on history (already done by `observe`) and then
-        conditions on R_i^t before choosing. That second step requires
-        a likelihood P(R | arm, history, posterior, Z) — supplied by the
-        recommender on `Recommendation.likelihood` — and would be applied
-        here as a Bayes update on the per-arm posterior.
+        The paper's §3 protocol says the agent first conditions on history
+        (already done by `observe`) and then conditions on R_i^t before
+        choosing. That second step requires a likelihood
+        P(R | arm, history, posterior, Z) — supplied by the recommender on
+        `Recommendation.likelihood` — and would be applied here as a Bayes
+        update on the per-arm posterior.
 
-        Phase 1 only ever receives `recommendation=None` via
-        `NullRecommender`, so this method is never invoked. Raising
-        keeps it explicit until Phase 2 implements the update.
+        Neither Phase 2 recommender uses this route: evidence sharing
+        updates via `observe_shared`, and the choice nudge bypasses beliefs
+        entirely. Raising keeps the explicit-conditioning route honest
+        until someone implements it.
         """
         raise NotImplementedError(
-            "Recommendation conditioning is a Phase 2 feature; "
-            "Phase 1 uses NullRecommender which returns None."
+            "Explicit Bayesian conditioning on R is not implemented; "
+            "use EvidenceSharingRecommender or ChoiceNudgeRecommender."
         )
