@@ -149,12 +149,62 @@ The recommender is a distinguished agent with a directed edge to every user: at 
   \item \emph{State-selected source} (\texttt{state\_arm}): in $G$ the recommender samples and truthfully labels the better arm $A$; in $F$, the worse arm $B$. All labels are honest --- the failure state shares true data about the wrong theory.
   \item \emph{Confused labels} (\texttt{confused}): the recommender is a tutor sampling both arms in alternation; in $G$ its labels are correct, in $F$ the two theories' identities are swapped, so draws from $B$ are reported as evidence about $A$ and vice versa. Every agent's posterior gap is then driven toward $-\Delta$.
 \end{enumerate}
+The notebook \texttt{experiments/2.\ Phase 2 - Evidence Sharing.ipynb} studies this operationalisation in three steps: individual discovery by state at the \S\ref{sec:unaided} operating point, the horizon dependence of the confused variant, and the community-level effect. We report each in turn.
 
 \paragraph{Operationalisation 2: a choice-nudging recommender.}
 Here $R_i^t$ is (probabilistically) the agent's actual next pull, and Bayesian conditioning is abstracted away into a $Z$-dependent accuracy shift: in $G$ the recommender points at $A$, in $F$ at $B$, and the agent pulls the pointed arm with probability $\varepsilon$, choosing myopically otherwise (\texttt{ChoiceNudgeRecommender}, \texttt{follow\_prob}). No belief update on $R$ takes place; beliefs change only through the honest payoffs of whatever arm is pulled. So $G$ boosts arm $A$ a bit and $F$ boosts arm $B$, directly at the level of choice.
 
-\paragraph{What the first simulations show.}
-A smoke run at the \S\ref{sec:unaided} operating point ($\Delta = 0.01$, $\delta = 0.005$, flat prior; $T = 2000$, $n = 400$, $Z$ forced to each state) gives, under the posterior-gap criterion: unaided $\hat q \approx 0.50$; evidence sharing, honest variant: $0.90$ in $G$, $0.15$ in $F$; confused variant: $0.61$ in $G$, $0.37$ in $F$ (still separating at this horizon --- the shared stream dominates beliefs only once its sampling noise falls below $\Delta$, after which these head to $1$ and $0$); choice nudge at $\varepsilon = 0.1$: $0.77$ in $G$, $0.31$ in $F$. Two lessons. First, even the \emph{honest} failure state suppresses individual discovery, and the mechanism is a comparison race: a trusted stream about one arm pins that arm's posterior at its true mean, so it never looks bad; when the pinned arm is $B$, an agent whose own early record on $A$ dips low loses the recovery channel (``$B$ eventually looks bad too'') that the unaided model provides, and is absorbed on $B$ for good. Second --- and this bites for \S\ref{sec:improve} --- suppressing the \emph{individual} is not enough to hurt the \emph{community}: with $q_F \approx 0.15$ and $n = 100$ conditionally independent agents, $P(D \mid F) = 1 - 0.85^{100} \approx 1$, so the community shrugs off the failure state. For the community to fail, $q_F$ must be driven essentially to $0$, and among the designs above only the confused variant does that: its corrupted stream pushes \emph{every} agent's posterior gap to the same wrong value $-\Delta$, deterministically, while honest sharing and choice nudges of any strength leave $q_F$ bounded away from zero. (The nudge at $\varepsilon = 1$ is a knife edge: the never-pulled arm $A$ freezes at its flat-prior mean $\tfrac12$, exactly $\delta$ above $B$'s pinned $0.495$, and $\hat q$ sits at $\approx 0.48$ on sampling noise.) The conjecture of \S\ref{sec:conj} should therefore be read as a claim about \emph{corrupted common evidence}: the community-level harm requires the failure state to corrupt the evidence map shared by all agents, not merely to bias which arm gets sampled.
+\paragraph{Results 1: individual discovery by state.}
+At the \S\ref{sec:unaided} operating point ($\Delta = 0.01$, $\delta = 0.005$, flat prior, $T = 2000$; $n = 300$ agents per condition, $Z$ forced to each state via the prior over $Z$), the posterior-gap criterion gives the table below (Figure~\ref{fig:es-individual}). Both states of both variants move individual discovery in the intended direction. The striking entry is the honest variant's failure state: a recommender that only ever shares \emph{true} data --- merely about the wrong theory --- cuts individual discovery from $0.48$ to $0.14$. The mechanism is a comparison race: a trusted stream about one arm pins that arm's posterior at its true mean, so it never has misleading-looking stretches. Pinning $A$ (the $G$ state) cures the unaided model's characteristic failure, an unlucky early run freezing $A$'s posterior low, and lifts $q$ to $0.91$. Pinning $B$ (the $F$ state) removes the \emph{recovery channel}: unaided, an agent that wrongly switched to $B$ returns to $A$ when its own $B$-draws happen to look bad; with $B$'s posterior held at $p_B$ that escape disappears, and early dips of $A$'s posterior become permanent. The \texttt{per\_share} rows show each variant under independently re-flipped $Z$ at $P(Z = G) = 0.99$: close to the corresponding $G$ column, as expected of a $99\%$/$1\%$ mixture stream.
+
+\begin{center}
+\small
+\begin{tabular}{lcc}
+\toprule
+\multicolumn{3}{c}{\textbf{Evidence sharing, individual level} \quad ($\Delta = 0.01$, $\delta = 0.005$, $T = 2000$, $n = 300$; notebook 2)}\\
+\midrule
+condition & $\hat q_{\text{gap}}$ & se\\
+\midrule
+unaided (\S\ref{sec:unaided} baseline) & $0.480$ & $0.029$\\
+\texttt{state\_arm}, $Z = G$ & $0.910$ & $0.017$\\
+\texttt{state\_arm}, $Z = F$ & $0.140$ & $0.020$\\
+\texttt{confused}, $Z = G$ & $0.643$ & $0.028$\\
+\texttt{confused}, $Z = F$ & $0.373$ & $0.028$\\
+\texttt{state\_arm}, per-share mix & $0.850$ & $0.021$\\
+\texttt{confused}, per-share mix & $0.657$ & $0.027$\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.75\textwidth]{../results/phase2_es_individual_20260610_174604.png}
+  \caption{Individual discovery probability by recommender state for the evidence-sharing recommender ($\Delta = 0.01$, $\delta = 0.005$, $T = 2000$, $n = 300$ agents per condition; notebook 2). Bars are $\hat q_{\text{gap}}$ with $\pm 1$ binomial-SE error bars; the dashed line is the unaided baseline.}
+  \label{fig:es-individual}
+\end{figure}
+
+\paragraph{Results 2: the confused variant separates on horizons $T \gtrsim 1/\Delta^2$.}
+The confused failure state drives \emph{every} agent's posterior gap toward $-\Delta$, so $q_F \to 0$ and $q_G \to 1$ --- but only once the shared stream's own sampling noise falls below the criterion margin. After $T$ steps each arm has received about $T/2$ shared draws, so the pinned posterior means still fluctuate by $\sim \sqrt{1/(2T)}$, and separation requires this to be small against $\delta = \Delta/2$, i.e.\ $T \gtrsim 1/\Delta^2$. At $\Delta = 0.01$ that is $10^4$--$10^5$ steps, and the sweep confirms it (Figure~\ref{fig:es-horizon}): $\hat q_G$ climbs $0.65 \to 0.87$ and $\hat q_F$ falls $0.42 \to 0.11$ as $T$ goes $10^3 \to 3 \times 10^4$, heading to $1$ and $0$ but visibly incomplete even at $T = 30000$. This is purely a speed limit, not a structural one, which is why the community demonstration below moves to a coarser gap.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.7\textwidth]{../results/phase2_es_horizon_20260610_174604.png}
+  \caption{Horizon dependence of the confused variant at the operating point $\Delta = 0.01$ ($n = 100$ agents per point, $Z$ forced; notebook 2). The good state climbs toward $1$ and the failure state falls toward $0$ on the $T \gtrsim 1/\Delta^2$ timescale set by the shared stream's sampling noise.}
+  \label{fig:es-horizon}
+\end{figure}
+
+\paragraph{Results 3: individuals improve, the community gets worse.}
+At $\Delta = 0.1$, $\delta = 0.05$, $T = 3000$ the confused variant's separation is complete --- measured $q_G = 1.000$, $q_F = 0.000$, against an unaided $q_u = 0.650$ --- so the \S\ref{sec:improve} effect can be exhibited with measured quantities (Figure~\ref{fig:es-community}). Given $Z$ the agents are i.i.d.\ (shared draws are independent per agent), so community discovery obeys the exact closed form $P(D \mid Z) = 1 - (1 - q_Z)^n$, verified in the notebook by bootstrap resampling of communities from the per-agent outcomes. Every individual improves: $P(D_i) = 0.99 \times 1.000 + 0.01 \times 0.000 = 0.990 \gg 0.650$. The community nonetheless deteriorates: unaided, $P(D) = 1 - 0.35^{100} \approx 1$; aided with a common $Z$, $P(D) = 0.99 \times 1 + 0.01 \times 0 = 0.990$. The aided community fails exactly when the shared recommender is in its failure state, and this $0.01$ failure mass cannot be diversified away --- the $P(D)$-versus-$n$ curve plateaus at $P(Z = G)$ instead of approaching $1$. The control isolates the mechanism: the \texttt{per\_share} recommender, with an identical marginal data stream but $Z$ re-flipped on every share, restores $P(D) \approx 1$. The harm is attributable entirely to the \emph{commonness} of $Z$, not to the recommender's $1\%$ error rate.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.75\textwidth]{../results/phase2_es_community_20260610_174604.png}
+  \caption{Community discovery probability against community size $n$ for the confused variant at $\Delta = 0.1$, $T = 3000$ (notebook 2). Unaided and per-share-control curves approach $1$; the aided curve with a common $Z$ plateaus at $P(Z = G) = 0.99$: the common failure state cannot be diversified away by adding agents.}
+  \label{fig:es-community}
+\end{figure}
+
+\paragraph{Corrupted common evidence, not biased sampling.}
+The results sharpen what the failure state must \emph{be} for the \S\ref{sec:conj} conjecture to hold at the community level. Suppressing individuals is not enough: the honest variant's $q_F = 0.14$ still leaves $P(D \mid F) = 1 - 0.86^{100} \approx 1$, because a hundred independent gambles virtually guarantee one winner. Community failure requires $q_F \approx 0$ --- every agent's beliefs pushed the same wrong way --- and among the designs above only the confused variant achieves that, by corrupting the evidence map shared by all agents rather than merely biasing which arm gets sampled. First numbers for operationalisation 2 point the same way: a choice nudge at $\varepsilon = 0.1$ gives $0.77$ in $G$ and $0.31$ in $F$ (smoke run at the operating point), and nudges at any strength leave $q_F$ bounded away from zero, since whatever arm is pulled still yields honest data. (The dictatorial nudge $\varepsilon = 1$ is a knife edge: the never-pulled arm $A$ freezes at its flat-prior mean $\tfrac12$, exactly $\delta$ above $B$'s pinned $0.495$, and $\hat q$ sits near $0.48$ on sampling noise.) The conjecture of \S\ref{sec:conj} should therefore be read as a claim about \emph{corrupted common evidence}.
 
 \section{Model conjectures}
 \label{sec:conj}
